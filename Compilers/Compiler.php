@@ -41,6 +41,10 @@ abstract class Compiler
      */
     public function getCompiledPath($path)
     {
+        //todo: check if typoscript allows for no_cache to avoid dos slamming
+        if(isset($_GET['no_cache']) && (int)$_GET['no_cache'] === 1){
+            return $this->cachePath.'/'.sha1($path).'_uncached.php';
+        }
         return $this->cachePath.'/'.sha1($path).'.php';
     }
 
@@ -52,6 +56,12 @@ abstract class Compiler
      */
     public function isExpired($path)
     {
+
+        //todo: check if typoscript allows for no_cache to avoid dos slamming
+        if(isset($_GET['no_cache']) && (int)$_GET['no_cache'] === 1){
+            return true;
+        }        
+
         $compiled = $this->getCompiledPath($path);
 
         // If the compiled file doesn't exist we will indicate that the view is expired
