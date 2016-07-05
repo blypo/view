@@ -125,9 +125,27 @@ class BladeCompiler extends Compiler implements CompilerInterface
         }
 
         if (! is_null($this->cachePath)) {
+
+		$fileContent = $this->files->get($this->getPath());
+
             // add default blypo viewhelper content
-            $filecontent = '@namespace(\AuM\Blypo\ViewHelper,b) '.$this->files->get($this->getPath());
-            $contents = $this->compileString($filecontent);
+		$defaults = $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['blypo']['defaultViewHelpers'];
+
+		if(is_array($defaults)){
+			$preContent = [];
+			foreach($defaults as $key => $namespace){
+				$preContent[] = '@namespace('.$namespace.','.$key.')';
+			}
+
+			$preContent = implode(PHP_EOL,$preContent).PHP_EOL;
+
+			$fileContent = $preContent . $fileContent;
+
+		}
+
+
+//            $filecontent = '@namespace(\AuM\Blypo\ViewHelper,b) '.$this->files->get($this->getPath());
+            $contents = $this->compileString($fileContent);
 
             $this->files->put($this->getCompiledPath($this->getPath()), $contents);
         }
