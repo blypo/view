@@ -41,8 +41,7 @@ abstract class Compiler
      */
     public function getCompiledPath($path)
     {
-        //todo: check if typoscript allows for no_cache to avoid dos slamming
-        if(isset($_GET['no_cache']) && (int)$_GET['no_cache'] === 1){
+        if(call_user_func($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['blypo']['sideStepCaching']) === true){
             return $this->cachePath.'/'.sha1($path).'_uncached.php';
         }
         return $this->cachePath.'/'.sha1($path).'.php';
@@ -56,9 +55,7 @@ abstract class Compiler
      */
     public function isExpired($path)
     {
-
-        //todo: check if typoscript allows for no_cache to avoid dos slamming
-        if(isset($_GET['no_cache']) && (int)$_GET['no_cache'] === 1){
+        if(call_user_func($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['blypo']['sideStepCaching']) === true){
             return true;
         }        
 
