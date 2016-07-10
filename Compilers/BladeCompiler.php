@@ -4,7 +4,6 @@ namespace Illuminate\View\Compilers;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
-
 class BladeCompiler extends Compiler implements CompilerInterface
 {
     /**
@@ -56,20 +55,6 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected $contentTags = ['{{', '}}'];
 	
-	/**
-     * Array of opening and closing tags for TYPO3 Extbase objects.
-     *
-     * @var array
-     */
-    protected $eobjectTags = ['{%', '%}'];
-	
-	/**
-     * Array of opening and closing tags for TYPO3 Extbase objects.
-     *
-     * @var array
-     */
-    protected $objectTags = ['{{%', '%}}'];
-
     /**
      * Array of opening and closing tags for escaped echos.
      *
@@ -126,27 +111,28 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         if (! is_null($this->cachePath)) {
 
-		$fileContent = $this->files->get($this->getPath());
-
-            // add default blypo viewhelper content
-		$defaults = $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['blypo']['defaultViewHelpers'];
-
-		if(is_array($defaults)){
-			$preContent = [];
-			foreach($defaults as $key => $namespace){
-				$preContent[] = '@namespace('.$namespace.','.$key.')';
+			$fileContent = $this->files->get($this->getPath());
+	
+	            // add default blypo viewhelper content
+			$defaults = $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['blypo']['defaultViewHelpers'];
+	
+			if(is_array($defaults)){
+				$preContent = [];
+				foreach($defaults as $key => $namespace){
+					$preContent[] = '@namespace('.$namespace.','.$key.')';
+				}
+	
+				$preContent = implode(PHP_EOL,$preContent).PHP_EOL;
+	
+				$fileContent = $preContent . $fileContent;
+	
 			}
 
-			$preContent = implode(PHP_EOL,$preContent).PHP_EOL;
-
-			$fileContent = $preContent . $fileContent;
-
-		}
-
-
-//            $filecontent = '@namespace(\AuM\Blypo\ViewHelper,b) '.$this->files->get($this->getPath());
             $contents = $this->compileString($fileContent);
-
+			
+			// add JS like TYPO3 Extbase variable accessing like $test.var.title
+			$contents = $this->compileObjects($contents);
+			
             $this->files->put($this->getCompiledPath($this->getPath()), $contents);
         }
     }
@@ -315,8 +301,6 @@ class BladeCompiler extends Compiler implements CompilerInterface
             'compileRawEchos' => strlen(stripcslashes($this->rawTags[0])),
             'compileEscapedEchos' => strlen(stripcslashes($this->escapedTags[0])),
             'compileRegularEchos' => strlen(stripcslashes($this->contentTags[0])),
-            'compileT3ObjEchos' => strlen(stripcslashes($this->eobjectTags[0])),
-            'compileT3ObjReturns' => strlen(stripcslashes($this->objectTags[0])),
         ];
 
         uksort($methods, function ($method1, $method2) use ($methods) {
@@ -402,77 +386,33 @@ class BladeCompiler extends Compiler implements CompilerInterface
             $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
 
             $wrapped = sprintf($this->echoFormat, $this->compileEchoDefaults($matches[2]));
-
+			
             return $matches[1] ? substr($matches[0], 1) : '<?php echo '.$wrapped.'; ?>'.$whitespace;
         };
 
         return preg_replace_callback($pattern, $callback, $value);
     }
 	
-	/**
-     * Compile the "regular" echo statements.
-     *
-     * @param  string  $value
-     * @return string
-     */
-    protected function compileT3ObjReturns($value)
-    {
-        $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->objectTags[0], $this->objectTags[1]);
-
-        $callback = function ($matches) {
-            $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
-			
-			$propertyPath = $matches[2];
-			$propertyPathSegments = explode('.', $propertyPath);
-			$subject = array_shift($propertyPathSegments);
-			$propertyPathSegments = implode('.',$propertyPathSegments);
-			
-            $wrapped = sprintf('\AuM\Blypo\ViewHelper\Object::parse($'.$subject.', %s)', $this->compileEchoT3Obj($propertyPathSegments));
-            return $matches[1] ? substr($matches[0], 1) : ''.$wrapped.''.$whitespace;
-        };
-
-        return preg_replace_callback($pattern, $callback, $value);
-    }
+	protected function compileObjects($value){
+		$objects = preg_match_all('/\$[\w\.]+/',$value, $allmatches);
+		foreach($allmatches as $matches){
+			foreach($matches as $match){
+				if(!empty($match)){
+					$propertyPath = $match;
+					$propertyPathSegments = explode('.', $propertyPath);
+					$subject = array_shift($propertyPathSegments);
+					$propertyPathSegments = implode('.',$propertyPathSegments);
+					if($subject && !empty($propertyPathSegments)){
+						// replace objects with Obj::parse()
+						$parser = sprintf('\AuM\Blypo\ViewHelper\Object::parse('.$subject.', %s)', "'".$propertyPathSegments."'");
+						$value = str_replace($match, $parser,$value);
+					}
+				}
+			}
+		}
+		return $value;
+	}
 	
-	/**
-     * Compile the "regular" echo statements.
-     *
-     * @param  string  $value
-     * @return string
-     */
-    protected function compileT3ObjEchos($value)
-    {
-        $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->eobjectTags[0], $this->eobjectTags[1]);
-
-        $callback = function ($matches) {
-            $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
-			
-			$propertyPath = $matches[2];
-			$propertyPathSegments = explode('.', $propertyPath);
-			$subject = array_shift($propertyPathSegments);
-			$propertyPathSegments = implode('.',$propertyPathSegments);
-			
-            $wrapped = sprintf('\AuM\Blypo\ViewHelper\Object::parse($'.$subject.', %s)', $this->compileEchoT3Obj($propertyPathSegments));
-            return $matches[1] ? substr($matches[0], 1) : '<?php echo '.$wrapped.'; ?>'.$whitespace;
-        };
-
-        return preg_replace_callback($pattern, $callback, $value);
-    }
-	
-	/**
-     * Compile the default values for the echo statement.
-     *
-     * @param  string  $value
-     * @return string
-     */
-    public function compileEchoT3Obj($value)
-    {
-    	$value = "'".$value."'";
-        return preg_replace('/^(?=\$)(.+?)(?:\s+or\s+)(.+?)$/s', 'isset($1) ? $1 : $2', $value);
-    }
-
-	
-
     /**
      * Compile the escaped echo statements.
      *
@@ -500,7 +440,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function compileEchoDefaults($value)
     {
-        return preg_replace('/^(?=\$)(.+?)(?:\s+or\s+)(.+?)$/s', 'isset($1) ? $1 : $2', $value);
+		return preg_replace('/^(?=\$)(.+?)(?:\s+or\s+)(.+?)$/s', 'isset($1) ? $1 : $2', $value);
     }
 
     /**
