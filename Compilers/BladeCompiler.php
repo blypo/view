@@ -405,7 +405,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
 					if($subject && !empty($propertyPathSegments)){
 						// replace objects with Obj::parse()
 						$parser = sprintf('\AuM\Blypo\ViewHelper\Object::parse('.$subject.', %s)', "'".$propertyPathSegments."'");
-						$value = str_replace($match, $parser,$value);
+						$pos = strpos($value, $match);
+						if ($pos !== false) {
+							$value = substr_replace($value, $parser, $pos, strlen($match));
+						}
 					}
 				}
 			}
