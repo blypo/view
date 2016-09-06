@@ -29,8 +29,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-master": "5.4-dev",
-            "dev-blypo" : "5.2-dev"
+            "dev-master": "5.4-dev"
         }
     },
     
